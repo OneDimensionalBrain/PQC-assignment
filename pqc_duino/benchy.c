@@ -4,12 +4,12 @@
 // array has two canaries. This file tests for aligned data.
 // The code that ran on the embedded system does not use this
 // method.
-#define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
+#define PQCLEAN_NAMESPACE PQCLEAN_MLKEM512_CLEAN
 
 # include <Arduino.h>
 
 #include "api.h"
-#include "randombytes.h"
+// #include "randombytes.h"
 
 #include <stdint.h>
 #include <stdio.h>
