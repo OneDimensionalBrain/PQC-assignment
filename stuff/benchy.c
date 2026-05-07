@@ -1,5 +1,9 @@
-// This is a benchmarking file. For aligned tests
-
+// This is for verification that nothing breaks. canaries add
+// a little overhead, since each canary is 8 bytes and you have
+// to add these 8 bytes to each array you made, so I guess each
+// array has two canaries. This file tests for aligned data.
+// The code that ran on the embedded system does not use this
+// method.
 #define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
 
 # include <Arduino.h>
@@ -49,69 +53,15 @@
 #error "namespace not properly defined for header guard"
 #endif
 
-#if defined(__arm__) || defined(__thumb__) || defined(_M_ARM)
-    #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__)
-        // CORTEX-M (Teensy, STM32)
-        #include "core_cm7.h" // Or equivalent for your specific chip
+void setup_teensy_timer() {
+    // Enable the Cycle Counter
+    ARM_DEMCR |= ARM_DEMCR_TRCENA;
+    ARM_DWT_CTRL |= ARM_DWT_CTRL_CYCCNTENA;
+}
 
-        // Manual DWT register addresses if headers aren't available
-        #define K_DWT_CTRL      (*(volatile uint32_t*)0xE0001000)
-        #define K_DWT_CYCCNT    (*(volatile uint32_t*)0xE0001004)
-        #define K_DEMCR         (*(volatile uint32_t*)0xE000EDFC)
-        #define K_TRCENA        (1UL << 24)
-        #define K_CYCCNTENA     (1UL << 0)
-
-        void where_am_i() {
-            printf("Running on an stm32 or a teensy!");
-        }
-
-        void setup_timer() {
-            K_DEMCR |= K_TRCENA;
-            K_DWT_CYCCNT = 0;
-            K_DWT_CTRL |= K_CYCCNTENA;
-        }
-
-        uint64_t get_cycles() {
-            return (uint64_t)K_DWT_CYCCNT;
-        }
-
-    #else
-        // Raspberry Pi / Linux ARM (Cortex-A)
-        // Cycles are restricted in userspace; use clock_gettime for nanoseconds
-        #include <time.h>
-
-        void where_am_i() {
-            printf("Running on a Pi!");
-        }
-
-        void setup_timer() {
-            // Nothing to setup for POSIX clock
-        }
-
-        // uint64_t get_cycles() {
-        //     struct timespec ts;
-        //     clock_gettime(CLOCK_MONOTONIC, &ts);
-        //     return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-        // }
-
-        static inline uint32_t get_cycles() {
-            uint32_t val;
-            // Read Performance Monitor Count Register
-            asm volatile("mrc p15, 0, %0, c15, c12, 1" : "=r"(val));
-            return val;
-        }
-    #endif
-#else
-    // Generic fallback for x86_64 (Laptop/Desktop)
-    #include <x86intrin.h>
-    void where_am_i() {
-        printf("Running on generic device!");
-    }
-    void setup_timer() {}
-    uint64_t get_cycles() {
-        return __rdtsc();
-    }
-#endif
+uint32_t get_cycles() {
+    return ARM_DWT_CYCCNT;
+}
 
 static int test_keys(void) {
     /*
@@ -136,7 +86,7 @@ static int test_keys(void) {
     printf("overhead: %" PRIu32 "\n", overhead);
 
     for (i = 0; i < NTESTS; i++) {
-        setup_timer();
+        setup_teensy_timer();
 
         // Alice generates a public key
         t0[i][0] = get_cycles();
@@ -173,12 +123,10 @@ end:
     return res;
 }
 
-int run_benchmarks(void) {
+void run_benchmarks(void) {
     puts(CRYPTO_ALGNAME);
 
-    where_am_i();
-
-    setup_timer();
+    setup_teensy_timer();
 
     // Check if CRYPTO_ALGNAME is printable
     printf("Starting Benchmarks for: %s\n", CRYPTO_ALGNAME);
@@ -189,10 +137,4 @@ int run_benchmarks(void) {
     if (result != 0) {
         printf("Errors occurred during benchmarking\n");
     }
-
-    return result;
-}
-
-int main() {
-    return run_benchmarks();
 }

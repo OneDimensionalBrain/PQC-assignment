@@ -1,8 +1,7 @@
-// This is a benchmarking file. For aligned tests
+// This is a benchmarking file. Tests time for misaligned
 
-#define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
-
-# include <Arduino.h>
+// change this line for a specific implementation
+// #define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
 
 #include "api.h"
 #include "randombytes.h"
@@ -119,11 +118,22 @@ static int test_keys(void) {
      */
     int res = 0;
 
-    static uint8_t key_a  [CRYPTO_BYTES]           __attribute__((aligned(32)));
-    static uint8_t key_b  [CRYPTO_BYTES]           __attribute__((aligned(32)));
-    static uint8_t pk     [CRYPTO_PUBLICKEYBYTES]  __attribute__((aligned(32)));
-    static uint8_t sendb  [CRYPTO_CIPHERTEXTBYTES] __attribute__((aligned(32)));
-    static uint8_t sk_a   [CRYPTO_SECRETKEYBYTES]  __attribute__((aligned(32)));
+    static uint8_t key_a  [CRYPTO_BYTES + 1]           __attribute__((aligned(32)));
+    static uint8_t key_b  [CRYPTO_BYTES + 1]           __attribute__((aligned(32)));
+    static uint8_t pk     [CRYPTO_PUBLICKEYBYTES + 1]  __attribute__((aligned(32)));
+    static uint8_t sendb  [CRYPTO_CIPHERTEXTBYTES + 1] __attribute__((aligned(32)));
+    static uint8_t sk_a   [CRYPTO_SECRETKEYBYTES + 1]  __attribute__((aligned(32)));
+
+    uint8_t *key_a_mis  = key_a + 1;
+    uint8_t *key_b_mis  = key_b + 1;
+    uint8_t *pk_mis     = pk + 1;
+    uint8_t *sendb_mis  = sendb + 1;
+    uint8_t *sk_a_mis   = sk_a + 1;
+
+    printf("Buffer Address: %p\n", (void*)pk_mis);
+    if (((uintptr_t)pk_mis % 4) != 0) {
+        printf("Confirmed: Buffer is NOT 4-byte aligned.\n");
+    }
 
     int i;
 
@@ -140,20 +150,20 @@ static int test_keys(void) {
 
         // Alice generates a public key
         t0[i][0] = get_cycles();
-        RETURNS_ZERO(crypto_kem_keypair(pk, sk_a));
+        RETURNS_ZERO(crypto_kem_keypair(pk_mis, sk_a_mis));
         t1[i][0] = get_cycles();
 
         t0[i][1] = get_cycles();
         // Bob derives a secret key and creates a response
-        RETURNS_ZERO(crypto_kem_enc(sendb, key_b, pk));
+        RETURNS_ZERO(crypto_kem_enc(sendb_mis, key_b_mis, pk_mis));
         t1[i][1] = get_cycles();
 
         // Alice uses Bobs response to get her secret key
         t0[i][2] = get_cycles();
-        RETURNS_ZERO(crypto_kem_dec(key_a, sendb, sk_a));
+        RETURNS_ZERO(crypto_kem_dec(key_a_mis, sendb_mis, sk_a_mis));
         t1[i][2] = get_cycles();
 
-        if (memcmp(key_a, key_b, CRYPTO_BYTES) != 0) {
+        if (memcmp(key_a_mis, key_b_mis, CRYPTO_BYTES) != 0) {
             printf("ERROR KEYS\n");
             res = 1;
             goto end;
@@ -193,6 +203,6 @@ int run_benchmarks(void) {
     return result;
 }
 
-int main() {
+int main(void) {
     return run_benchmarks();
 }

@@ -1,7 +1,7 @@
 // This is for verification that nothing breaks. canaries add
 // a little overhead, since each canary is 8 bytes and you have
 // to add these 8 bytes to each array you made, so I guess each
-// array has two canaries. This file tests for misaligned data.
+// array has two canaries. This file tests for aligned data.
 // The code that ran on the embedded system does not use this
 // method.
 
@@ -88,42 +88,46 @@ static int test_keys(void) {
      */
     int res = 0;
 
-    static uint8_t key_a  [CRYPTO_BYTES + 16 + 1]           __attribute__((aligned(32)));
-    static uint8_t key_b  [CRYPTO_BYTES + 16 + 1]           __attribute__((aligned(32)));
-    static uint8_t pk     [CRYPTO_PUBLICKEYBYTES + 16 + 1]  __attribute__((aligned(32)));
-    static uint8_t sendb  [CRYPTO_CIPHERTEXTBYTES + 16 + 1] __attribute__((aligned(32)));
-    static uint8_t sk_a   [CRYPTO_SECRETKEYBYTES + 16 + 1]  __attribute__((aligned(32)));
+    // each malloc_s had an extra byte for misalignment i think, removed it.
+    // Also removed each _aligned thing from names cuz too lazy to change
+    // everything.
+    // Should replace with static array now.
+    // uint8_t *key_a = malloc_s(CRYPTO_BYTES + 16);
+    // uint8_t *key_b = malloc_s(CRYPTO_BYTES + 16);
+    // uint8_t *pk    = malloc_s(CRYPTO_PUBLICKEYBYTES + 16);
+    // uint8_t *sendb = malloc_s(CRYPTO_CIPHERTEXTBYTES + 16);
+    // uint8_t *sk_a  = malloc_s(CRYPTO_SECRETKEYBYTES + 16);
 
-    uint8_t *key_a_mis  = key_a + 1;
-    uint8_t *key_b_mis  = key_b + 1;
-    uint8_t *pk_mis     = pk + 1;
-    uint8_t *sendb_mis  = sendb + 1;
-    uint8_t *sk_a_mis   = sk_a + 1;
+    uint8_t key_a  [CRYPTO_BYTES + 16];
+    uint8_t key_b  [CRYPTO_BYTES + 16];
+    uint8_t pk     [CRYPTO_PUBLICKEYBYTES + 16];
+    uint8_t sendb  [CRYPTO_CIPHERTEXTBYTES + 16];
+    uint8_t sk_a   [CRYPTO_SECRETKEYBYTES + 16];
 
-    write_canary(key_a_mis);
-    write_canary(key_a_mis + CRYPTO_BYTES + 8);
-    write_canary(key_b_mis);
-    write_canary(key_b_mis + CRYPTO_BYTES + 8);
-    write_canary(pk_mis);
-    write_canary(pk_mis +  CRYPTO_PUBLICKEYBYTES + 8);
-    write_canary(sendb_mis);
-    write_canary(sendb_mis + CRYPTO_CIPHERTEXTBYTES + 8);
-    write_canary(sk_a_mis);
-    write_canary(sk_a_mis + CRYPTO_SECRETKEYBYTES + 8);
+    write_canary(key_a);
+    write_canary(key_a + CRYPTO_BYTES + 8);
+    write_canary(key_b);
+    write_canary(key_b + CRYPTO_BYTES + 8);
+    write_canary(pk);
+    write_canary(pk +  CRYPTO_PUBLICKEYBYTES + 8);
+    write_canary(sendb);
+    write_canary(sendb + CRYPTO_CIPHERTEXTBYTES + 8);
+    write_canary(sk_a);
+    write_canary(sk_a + CRYPTO_SECRETKEYBYTES + 8);
 
     int i;
 
     for (i = 0; i < NTESTS; i++) {
         // Alice generates a public key
-        RETURNS_ZERO(crypto_kem_keypair(pk_mis + 8, sk_a_mis + 8));
+        RETURNS_ZERO(crypto_kem_keypair(pk + 8, sk_a + 8));
 
         // Bob derives a secret key and creates a response
-        RETURNS_ZERO(crypto_kem_enc(sendb_mis + 8, key_b_mis + 8, pk_mis + 8));
+        RETURNS_ZERO(crypto_kem_enc(sendb + 8, key_b + 8, pk + 8));
 
         // Alice uses Bobs response to get her secret key
-        RETURNS_ZERO(crypto_kem_dec(key_a_mis + 8, sendb_mis + 8, sk_a_mis + 8));
+        RETURNS_ZERO(crypto_kem_dec(key_a + 8, sendb + 8, sk_a + 8));
 
-        if (memcmp(key_a_mis + 8, key_b_mis + 8, CRYPTO_BYTES) != 0) {
+        if (memcmp(key_a + 8, key_b + 8, CRYPTO_BYTES) != 0) {
             printf("ERROR KEYS\n");
             res = 1;
             goto end;
@@ -131,11 +135,11 @@ static int test_keys(void) {
 
         // i have no idea why add 8 each time, need to know.
         // Validate that the implementation did not touch the canary
-        if (check_canary(key_a_mis) || check_canary(key_a_mis + CRYPTO_BYTES + 8) ||
-                check_canary(key_b_mis) || check_canary(key_b_mis + CRYPTO_BYTES + 8 ) ||
-                check_canary(pk_mis) || check_canary(pk_mis + CRYPTO_PUBLICKEYBYTES + 8 ) ||
-                check_canary(sendb_mis) || check_canary(sendb_mis + CRYPTO_CIPHERTEXTBYTES + 8 ) ||
-                check_canary(sk_a_mis) || check_canary(sk_a_mis + CRYPTO_SECRETKEYBYTES + 8 )) {
+        if (check_canary(key_a) || check_canary(key_a + CRYPTO_BYTES + 8) ||
+                check_canary(key_b) || check_canary(key_b + CRYPTO_BYTES + 8 ) ||
+                check_canary(pk) || check_canary(pk + CRYPTO_PUBLICKEYBYTES + 8 ) ||
+                check_canary(sendb) || check_canary(sendb + CRYPTO_CIPHERTEXTBYTES + 8 ) ||
+                check_canary(sk_a) || check_canary(sk_a + CRYPTO_SECRETKEYBYTES + 8 )) {
             printf("ERROR canary overwritten\n");
             res = 1;
             goto end;
