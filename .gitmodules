@@ -1,0 +1,6 @@
+[submodule "PQClean"]
+	path = PQClean
+	url = https://github.com/PQClean/PQClean.git
+[submodule "circle"]
+	path = circle
+	url = https://github.com/rsta2/circle.git
