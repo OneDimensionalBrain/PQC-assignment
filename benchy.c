@@ -1,11 +1,11 @@
 // This is a benchmarking file. For aligned tests
 
-#define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
+// #define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
 
-# include <Arduino.h>
+// # include <Arduino.h>
 
 #include "api.h"
-#include "randombytes.h"
+// #include "randombytes.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -34,7 +34,7 @@
 
 #define RETURNS_ZERO(f)                           \
     if ((f) != 0) {                               \
-        puts(#f " returned non-zero returncode"); \
+        printf(#f " returned non-zero returncode"); \
         res = 1;                                  \
         goto end;                                 \
     }
@@ -61,8 +61,11 @@
         #define K_TRCENA        (1UL << 24)
         #define K_CYCCNTENA     (1UL << 0)
 
+        #define SCOPE_HIGH()  do {  } while (0)
+        #define SCOPE_LOW()   do {  } while (0)
+
         void where_am_i() {
-            printf("Running on an stm32 or a teensy!");
+            printf("Running on an stm32 or a teensy!\n");
         }
 
         void setup_timer() {
@@ -79,34 +82,56 @@
         // Raspberry Pi / Linux ARM (Cortex-A)
         // Cycles are restricted in userspace; use clock_gettime for nanoseconds
         #include <time.h>
+        // static CGPIOPin *g_pScopePin = 0;
+
+        extern void scope_high(void);
+        extern void scope_low(void);
+        extern uint64_t get_system_micros(void);
+        extern int store_printf(const char *format, ...);
+
+        #define SCOPE_HIGH()  scope_high()
+        #define SCOPE_LOW()   scope_low()
+        #define printf(...)   store_printf(__VA_ARGS__)
 
         void where_am_i() {
-            printf("Running on a Pi!");
+            printf("Running on a Pi!\n");
         }
 
         void setup_timer() {
-            // Nothing to setup for POSIX clock
+            // ARM1176JZF-S PMU - c15 based, NOT c9 like Cortex-A
+            uint32_t val;
+            __asm__ volatile (
+                "mrc p15, 0, %0, c15, c12, 0\n\t"  // read PMNC
+                "orr %0, %0, #7\n\t"               // E|P|C: enable + reset both counters
+                "mcr p15, 0, %0, c15, c12, 0\n\t"  // write PMNC
+                : "=r"(val)
+            );
         }
 
-        // uint64_t get_cycles() {
-        //     struct timespec ts;
-        //     clock_gettime(CLOCK_MONOTONIC, &ts);
-        //     return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+        static inline uint64_t get_cycles() {
+            uint32_t cc;
+            __asm__ volatile (
+                "mrc p15, 0, %0, c15, c12, 1\n\t"  // read CCNT
+                : "=r"(cc)
+            );
+            return (uint64_t)cc;
+        }
+
+        // static inline uint64_t get_cycles() {
+        //     return get_system_micros(); // Now returning microseconds
         // }
 
-        static inline uint32_t get_cycles() {
-            uint32_t val;
-            // Read Performance Monitor Count Register
-            asm volatile("mrc p15, 0, %0, c15, c12, 1" : "=r"(val));
-            return val;
-        }
     #endif
 #else
     // Generic fallback for x86_64 (Laptop/Desktop)
     #include <x86intrin.h>
+    #define SCOPE_HIGH()  do {  } while (0)
+    #define SCOPE_LOW()   do {  } while (0)
+
     void where_am_i() {
         printf("Running on generic device!");
     }
+
     void setup_timer() {}
     uint64_t get_cycles() {
         return __rdtsc();
@@ -135,29 +160,44 @@ static int test_keys(void) {
 
     printf("overhead: %" PRIu32 "\n", overhead);
 
+    setup_timer();
     for (i = 0; i < NTESTS; i++) {
-        setup_timer();
-
         // Alice generates a public key
+        // printf("First function:\n");
+        SCOPE_HIGH();
+        // printf("Set scope pin HIGH\n");
         t0[i][0] = get_cycles();
+        // printf("getting init cycle...\n");
         RETURNS_ZERO(crypto_kem_keypair(pk, sk_a));
+        // printf("successful run!\n");
         t1[i][0] = get_cycles();
+        // printf("next cycle\n");
+        SCOPE_LOW();
+        // printf("time to go low\n");
 
-        t0[i][1] = get_cycles();
         // Bob derives a secret key and creates a response
+        SCOPE_HIGH();
+        t0[i][1] = get_cycles();
         RETURNS_ZERO(crypto_kem_enc(sendb, key_b, pk));
+        // printf("successful run 2\n");
         t1[i][1] = get_cycles();
+        SCOPE_LOW();
 
         // Alice uses Bobs response to get her secret key
+        SCOPE_HIGH();
         t0[i][2] = get_cycles();
         RETURNS_ZERO(crypto_kem_dec(key_a, sendb, sk_a));
+        // printf("successful run 3\n");
         t1[i][2] = get_cycles();
+        SCOPE_LOW();
 
+        // printf("compare stage\n");
         if (memcmp(key_a, key_b, CRYPTO_BYTES) != 0) {
             printf("ERROR KEYS\n");
             res = 1;
             goto end;
         }
+        // printf("nothing ever happens\n");
     }
 
     for (i = 0; i < NTESTS; i++) {
@@ -174,7 +214,7 @@ end:
 }
 
 int run_benchmarks(void) {
-    puts(CRYPTO_ALGNAME);
+    printf("%s\n", CRYPTO_ALGNAME);
 
     where_am_i();
 
@@ -193,6 +233,6 @@ int run_benchmarks(void) {
     return result;
 }
 
-int main() {
-    return run_benchmarks();
-}
+// int main() {
+//     return run_benchmarks();
+// }

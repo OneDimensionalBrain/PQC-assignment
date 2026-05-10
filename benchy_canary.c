@@ -257,7 +257,7 @@ end:
     return res;
 }
 
-int main(void) {
+int run_benchmarks(void) {
     // Check if CRYPTO_ALGNAME is printable
     puts(CRYPTO_ALGNAME);
 
