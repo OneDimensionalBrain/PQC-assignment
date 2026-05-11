@@ -7,6 +7,7 @@ extern "C" int run_benchmarks (void);
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <circle/memory.h>
 
 #define PARTITION "emmc1-1"
 #define FILENAME  "circle.txt"
@@ -83,6 +84,10 @@ extern "C" int store_printf(const char *format, ...)
     }
 
     return length;
+}
+
+extern "C" size_t get_heap_free(void) {
+    return CMemorySystem::Get()->GetHeapFreeSpace(HEAP_ANY);
 }
 
 /* =========================================================
@@ -202,8 +207,13 @@ TShutdownMode CKernel::Run (void)
 
     /* run benchmark */
     store_printf(">>> ENTER BENCHMARK <<<\n");
+    size_t heap_before = CMemorySystem::Get()->GetHeapFreeSpace(HEAP_ANY);
     int r = run_benchmarks();
+    size_t heap_after = CMemorySystem::Get()->GetHeapFreeSpace(HEAP_ANY);
     store_printf("returned: %d", r);
+    store_printf("\nPeak heap: ");
+    store_printf(": %u bytes\n", (unsigned)(heap_before - heap_after));
+    store_printf("\n");
 
     // Confirm CPU frequency using 1MHz reference timer vs PMU cycle counter
     // uint32_t c0, c1;

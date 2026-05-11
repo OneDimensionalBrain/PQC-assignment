@@ -1,0 +1,8 @@
+>>> ENTER BENCHMARK <<<
+ML-KEM-512
+Running on a Pi!
+Starting Benchmarks for: ML-KEM-512
+This is a heap test file.
+returned: 0
+Peak heap: : 1056 bytes
+

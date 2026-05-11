@@ -33,6 +33,7 @@
 #include <circle/fs/fat/fatfs.h>
 #include <circle/types.h>
 #include <circle/gpiopin.h>
+// #include <circle/memory.h>
 
 enum TShutdownMode
 {

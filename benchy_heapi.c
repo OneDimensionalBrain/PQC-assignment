@@ -8,6 +8,7 @@
 // #include "randombytes.h"
 
 
+//#include <cstddef>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +16,7 @@
 #include <inttypes.h>
 
 #ifndef NTESTS
-#define NTESTS 100
+#define NTESTS 1
 #endif
 
 // https://stackoverflow.com/a/1489985/1711232
@@ -92,6 +93,7 @@
         #include <time.h>
         // static CGPIOPin *g_pScopePin = 0;
 
+        extern size_t get_heap_free(void);
         extern void scope_high(void);
         extern void scope_low(void);
         extern uint64_t get_system_micros(void);
@@ -226,20 +228,8 @@ static int test_keys(void) {
 
     int i;
 
-    static uint32_t t0[NTESTS][3], t1[NTESTS][3];
-    static uint32_t keypair_stack[NTESTS], encaps_stack[NTESTS], decaps_stack[NTESTS];
-
-    // these store cache misses. first field for iteration, the run itself. Second field says it stores
-    // an element for each cryptographic function. Third field specifies if it is to keep data centered
-    // so cache_misses_read[i][func][1] - cache_misses_read[i][func][0] will be executed.
-    static uint32_t cache_misses_read[NTESTS][3][2];
-    static uint32_t cache_misses_write[NTESTS][3][2];
-
-    t0[0][0] = get_cycles();
-    t1[0][0] = get_cycles();
-    uint32_t overhead = t1[0][0] - t0[0][0];
-
-    printf("overhead: %" PRIu32 "\n", overhead);
+    static size_t heap_before[3];
+    static size_t heap_after[3];
 
     set_pmu_event_pmn0(0x0B); // PMN0 counts data cache read misses
     set_pmu_event_pmn1(0x0D); // PMN1 counts data cache write misses
@@ -247,42 +237,23 @@ static int test_keys(void) {
     for (i = 0; i < NTESTS; i++) {
         // Alice generates a public key
         SCOPE_HIGH();
-        paint_stack();
-        cache_misses_read[i][0][0] = read_pmn0();
-        cache_misses_write[i][0][0] = read_pmn1();
-        t0[i][0] = get_cycles();
+        heap_before[0] = get_heap_free();
         RETURNS_ZERO(crypto_kem_keypair(pk, sk_a));
-        t1[i][0] = get_cycles();
-        keypair_stack[i] = measure_stack();
-        cache_misses_read[i][0][1] = read_pmn0();
-        cache_misses_write[i][0][1] = read_pmn1();
+        heap_after[0] = get_heap_free();
         SCOPE_LOW();
 
         // Bob derives a secret key and creates a response
         SCOPE_HIGH();
-        paint_stack();
-        cache_misses_read[i][1][0] = read_pmn0();
-        cache_misses_write[i][1][0] = read_pmn1();
-        t0[i][1] = get_cycles();
+        heap_before[1] = get_heap_free();
         RETURNS_ZERO(crypto_kem_enc(sendb, key_b, pk));
-        t1[i][1] = get_cycles();
-        encaps_stack[i] = measure_stack();
-        cache_misses_read[i][1][1] = read_pmn0();
-        cache_misses_write[i][1][1] = read_pmn1();
+        heap_after[1] = get_heap_free();
         SCOPE_LOW();
 
         // Alice uses Bobs response to get her secret key
         SCOPE_HIGH();
-        paint_stack();
-        cache_misses_read[i][2][0] = read_pmn0();
-        cache_misses_write[i][2][0] = read_pmn1();
-        t0[i][2] = get_cycles();
+        heap_before[2] = get_heap_free();
         RETURNS_ZERO(crypto_kem_dec(key_a, sendb, sk_a));
-        // printf("successful run 3\n");
-        t1[i][2] = get_cycles();
-        decaps_stack[i] = measure_stack();
-        cache_misses_read[i][2][1] = read_pmn0();
-        cache_misses_write[i][2][1] = read_pmn1();
+        heap_after[2] = get_heap_free();
         SCOPE_LOW();
 
         // printf("compare stage\n");
@@ -291,24 +262,13 @@ static int test_keys(void) {
             res = 1;
             goto end;
         }
-        // printf("nothing ever happens\n");
+
+
+        printf("\nheap for keypair: %u", (unsigned)(heap_after[0] - heap_before[0]));
+        printf("\nheap for encaps: %u", (unsigned)(heap_after[1] - heap_before[1]));
+        printf("\nheap for decaps: %u", (unsigned)(heap_after[2] - heap_before[2]));
     }
 
-    printf("Iteration, Keypair cycles, Keypair stack, Keypair read cache miss, Keypair write cache miss, \
-Encaps cycles, Encaps stack, Encaps read cache miss, Encaps write cache miss, \
-Decaps cycles, Decaps stack, Decaps read cache miss, Decaps write cache miss\n");
-    for (i = 0; i < NTESTS; i++) {
-        printf("%d, \t%" PRIu32 ", \t%" PRIu32 ", \t%" PRIu32
-                ", \t%" PRIu32 ", \t%" PRIu32 ", \t%" PRIu32
-                ", \t%" PRIu32 ", \t%" PRIu32 ", \t%" PRIu32
-                ", \t%" PRIu32 ", \t%" PRIu32 ", \t%" PRIu32 "\n",
-               i,
-               (t1[i][0] - t0[i][0]), keypair_stack[i], (cache_misses_read[i][0][1] - cache_misses_read[i][0][0]), (cache_misses_write[i][0][1] - cache_misses_write[i][0][0]),// Keypair
-               (t1[i][1] - t0[i][1]), encaps_stack[i], (cache_misses_read[i][1][1] - cache_misses_read[i][1][0]), (cache_misses_write[i][1][1] - cache_misses_write[i][1][0]),// Encaps
-               (t1[i][2] - t0[i][2]), decaps_stack[i], (cache_misses_read[i][2][1] - cache_misses_read[i][2][0]), (cache_misses_write[i][2][1] - cache_misses_write[i][2][0])// Decaps
-
-        );
-    }
 
 end:
     return res;
@@ -323,7 +283,8 @@ int run_benchmarks(void) {
 
     // Check if CRYPTO_ALGNAME is printable
     printf("Starting Benchmarks for: %s\n", CRYPTO_ALGNAME);
-    // I moved it up
+
+    printf("This is a heap test file.\n");
 
     int result = test_keys();
 
