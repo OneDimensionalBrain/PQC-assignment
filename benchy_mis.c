@@ -51,7 +51,7 @@
 #if defined(__arm__) || defined(__thumb__) || defined(_M_ARM)
     #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__)
         // CORTEX-M (Teensy, STM32)
-        #include "core_cm7.h" // Or equivalent for your specific chip
+        #include "core_cm7.h" // Or equivalent for your specific chip, I'll replace it later with the relevant one when it is ready
 
         // Manual DWT register addresses if headers aren't available
         #define K_DWT_CTRL      (*(volatile uint32_t*)0xE0001000)
