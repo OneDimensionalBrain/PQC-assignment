@@ -1,7 +1,7 @@
 // This is a benchmarking file. Tests time for misaligned
 
 // change this line for a specific implementation
-// #define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
+// #define PQCLEAN_NAMESPACE PQCLEAN_MLKEM512_CLEAN
 
 #include "api.h"
 #include "randombytes.h"
