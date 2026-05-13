@@ -1,6 +1,6 @@
 // This is a benchmarking file. For aligned tests
 
-// #define PQCLEAN_NAMESPACE PQCLEAN_KYBER512_CLEAN
+// #define PQCLEAN_NAMESPACE PQCLEAN_MLKEM512_CLEAN
 
 // # include <Arduino.h>
 
